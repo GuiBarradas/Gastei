@@ -29,6 +29,11 @@ api = get_api_client()
 ASSISTANT_AVATAR = ":material/savings:"
 
 
+def _md(text: str) -> str:
+    # "R$ 10 ... R$ 20" pairs the dollars as LaTeX delimiters in st.markdown.
+    return text.replace("$", r"\$")
+
+
 # ---------- Estado ----------
 if "chat_conversation_id" not in st.session_state:
     st.session_state.chat_conversation_id = None
@@ -113,7 +118,7 @@ for msg in messages_for_display:
     avatar = ASSISTANT_AVATAR if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
         if msg["content"]:
-            st.markdown(msg["content"])
+            st.markdown(_md(msg["content"]))
         for tc in msg.get("tool_calls", []):
             _render_tool_call(tc)
 
@@ -122,7 +127,7 @@ for msg in messages_for_display:
 prompt = st.chat_input("Ex: quanto gastei com delivery em abril?")
 if prompt:
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(_md(prompt))
 
     with st.chat_message("assistant", avatar=ASSISTANT_AVATAR):
         with st.spinner("Pensando..."):
@@ -136,7 +141,7 @@ if prompt:
                 st.stop()
 
         st.session_state.chat_conversation_id = response["conversation_id"]
-        st.markdown(response["answer"])
+        st.markdown(_md(response["answer"]))
         for tc in response.get("tool_calls", []) or []:
             _render_tool_call(tc)
 
