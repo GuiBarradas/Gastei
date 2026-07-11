@@ -2,6 +2,21 @@
 
 Guide for deploying Gastei on Fly.io for free (up to ~3 small apps, plenty for this).
 
+## Two deployment profiles
+
+**Personal instance** — your real financial data. Never expose it publicly: run it behind Tailscale or Cloudflare Tunnel (§6). The SQLite volume persists your data across deploys.
+
+**Public demo** — for a portfolio link anyone can click. No real data ever ships: seed the database with the synthetic generator instead, and skip the persistent volume so every restart resets the sandbox:
+
+```bash
+# In the API container start command (or a release_command):
+uv run alembic upgrade head
+uv run python scripts/seed_demo_data.py      # 660+ deterministic fake transactions
+curl -s -X POST localhost:8000/transactions/recategorize?limit=1000   # optional: pre-categorize
+```
+
+The seed script refuses to run against a non-empty database (`GASTEI_DEMO_FORCE=1` overrides), so it cannot clobber a personal instance by accident. Keep `LLM_PROVIDER=gemini` with a free-tier key: if visitors exhaust the quota, the categorization pipeline degrades to rules-only and `/chat` returns a friendly 503 — nothing crashes.
+
 ## Why Fly.io
 
 - Generous free tier (3 `shared-cpu-1x` VMs, 256MB RAM each — fits api+streamlit)
