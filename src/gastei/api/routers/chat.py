@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from gastei.agents.insight_agent import AgentTimeoutError
 from gastei.api.deps import get_chat_service, get_db_session
+from gastei.domain.ports import LLMUnavailableError
 from gastei.models.chat import Conversation, Message
 from gastei.schemas.chat import (
     ChatRequest,
@@ -42,6 +43,11 @@ async def chat(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AgentTimeoutError as exc:
         raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except LLMUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM provider temporarily unavailable — try again shortly. ({exc})",
+        ) from exc
 
 
 @router.get("/conversations", response_model=list[ConversationOut])

@@ -16,6 +16,7 @@ from typing import Any
 import anthropic
 
 from gastei.config import get_settings
+from gastei.domain.ports import LLMUnavailableError
 from gastei.schemas.llm import LLMResponse, LLMToolUse
 
 
@@ -56,7 +57,10 @@ class AnthropicLLMClient:
         if tools:
             kwargs["tools"] = tools
 
-        response = await self._client.messages.create(**kwargs)
+        try:
+            response = await self._client.messages.create(**kwargs)
+        except anthropic.APIError as exc:
+            raise LLMUnavailableError(f"Anthropic: {exc}") from exc
         return self._translate(response)
 
     @staticmethod

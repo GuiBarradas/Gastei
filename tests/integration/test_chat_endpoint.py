@@ -166,3 +166,38 @@ def test_chat_returns_503_when_llm_not_configured(client_no_llm: TestClient) -> 
     r = client_no_llm.post("/chat", json={"message": "oi"})
     assert r.status_code == 503
     assert "LLM_PROVIDER" in r.json()["detail"]
+
+
+# --------------------------------------------------------------------------------------
+# Provider fora do ar → 503 amigável, não 500
+# --------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def client_llm_down(db_session: Session) -> Iterator[TestClient]:
+    from gastei.domain.ports import LLMUnavailableError
+
+    class DownLLM:
+        async def messages_create(self, **kwargs):
+            raise LLMUnavailableError("Gemini: 503 UNAVAILABLE")
+
+    app = create_app()
+
+    def _override_db() -> Iterator[Session]:
+        yield db_session
+
+    def _override_chat_service() -> ChatService:
+        agent = InsightAgent(llm=DownLLM(), tools=[], model="x")
+        return ChatService(agent=agent, session=db_session)
+
+    app.dependency_overrides[get_db_session] = _override_db
+    app.dependency_overrides[get_chat_service] = _override_chat_service
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+def test_chat_returns_503_when_provider_is_down(client_llm_down: TestClient) -> None:
+    r = client_llm_down.post("/chat", json={"message": "oi"})
+    assert r.status_code == 503
+    assert "temporarily unavailable" in r.json()["detail"]

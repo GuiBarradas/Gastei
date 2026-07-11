@@ -11,17 +11,22 @@ Key translations:
 - ``{role: 'assistant', content: [text|tool_use]}`` → ``Content(role='model', parts=[text|function_call])``
 - ``{role: 'user', content: [tool_result]}``        → ``Content(role='user', parts=[function_response])``
 - Gemini ``function_call`` (no native id)           → ``LLMToolUse(id=synthesized UUID)``
+- ``thought_signature`` on function calls is preserved through ``raw_content``
+  and echoed back on replay — Gemini 3.x rejects histories without it.
 """
 
 from __future__ import annotations
 
+import base64
 import uuid
 from typing import Any
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from gastei.config import get_settings
+from gastei.domain.ports import LLMUnavailableError
 from gastei.schemas.llm import LLMResponse, LLMToolUse
 
 
@@ -63,11 +68,14 @@ class GeminiLLMClient:
                 )
             ]
 
-        response = await self._client.aio.models.generate_content(
-            model=model,
-            contents=contents,
-            config=types.GenerateContentConfig(**config_kwargs),
-        )
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=model,
+                contents=contents,
+                config=types.GenerateContentConfig(**config_kwargs),
+            )
+        except genai_errors.APIError as exc:
+            raise LLMUnavailableError(f"Gemini: {exc.code} {exc.status}") from exc
 
         return self._translate_response(response)
 
@@ -117,12 +125,16 @@ class GeminiLLMClient:
                         if block.get("type") == "text":
                             parts.append(types.Part(text=block["text"]))
                         elif block.get("type") == "tool_use":
+                            signature = block.get("thought_signature")
                             parts.append(
                                 types.Part(
                                     function_call=types.FunctionCall(
                                         name=block["name"],
                                         args=block.get("input", {}),
-                                    )
+                                    ),
+                                    thought_signature=(
+                                        base64.b64decode(signature) if signature else None
+                                    ),
                                 )
                             )
                 if parts:
@@ -175,12 +187,16 @@ class GeminiLLMClient:
                     synthetic_id = f"tu_{uuid.uuid4().hex[:16]}"
                     args = dict(fc.args) if fc.args else {}
                     tool_uses.append(LLMToolUse(id=synthetic_id, name=fc.name, input=args))
+                    signature = getattr(part, "thought_signature", None)
                     raw_content.append(
                         {
                             "type": "tool_use",
                             "id": synthetic_id,
                             "name": fc.name,
                             "input": args,
+                            "thought_signature": (
+                                base64.b64encode(signature).decode() if signature else None
+                            ),
                         }
                     )
 

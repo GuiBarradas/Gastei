@@ -67,12 +67,20 @@ class Classifier(Protocol):
     ) -> list[CategorizationResult]: ...
 
 
+class LLMUnavailableError(RuntimeError):
+    """The LLM provider failed (rate limit, capacity, network, auth).
+
+    Adapters translate SDK-specific errors into this so callers can react
+    without importing provider SDKs.
+    """
+
+
 @runtime_checkable
 class LLMClient(Protocol):
     """Provider-agnostic adapter over an LLM SDK.
 
     The interface stays narrow on purpose; SDK-specific quirks live inside
-    the concrete adapter.
+    the concrete adapter. Provider failures surface as ``LLMUnavailableError``.
     """
 
     async def messages_create(
