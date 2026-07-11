@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gastei"
+version = "0.4.0"
+description = "Personal finance assistant powered by AI — Open Finance ingestion, automatic categorization, and a tool-using chat agent."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Guilherme Barradas", email = "guilhermebarradasdev@gmail.com" }]
+dependencies = [
+    "fastapi>=0.115",
+    "python-multipart>=0.0.12",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.5",
+    "httpx>=0.27",
+    "apscheduler>=3.10",
+    "anthropic>=0.39",
+    "google-genai>=0.8",
+    "pluggy-sdk>=1.0",
+    "ofxparse>=0.21",
+    "pandas>=2.2",
+    "structlog>=24.4",
+    "tenacity>=9.0",
+    "python-dotenv>=1.0",
+    "cryptography>=43",
+    "streamlit>=1.39",
+    "plotly>=5.24",
+    "pyyaml>=6.0",
+]
+
+[project.urls]
+Repository = "https://github.com/GuiBarradas/Gastei"
+Issues = "https://github.com/GuiBarradas/Gastei/issues"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gastei"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "S101"]
+# FastAPI uses Depends/Form/File as default values — idiomatic, intentional.
+"src/gastei/api/**" = ["B008"]
+# Plotly's API expects nested kwargs; ``dict()`` is the canonical pattern there.
+"streamlit_app/views/dashboard.py" = ["C408"]
+"streamlit_app/components/ui.py" = ["C408"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+markers = [
+    "unit: pure tests, no I/O",
+    "integration: uses a real database (SQLite in-memory) or mocked network",
+    "contract: hits a real external API (skipped by default; run with -m contract)",
+    "slow: takes more than 1 second",
+]
