@@ -1,0 +1,76 @@
+# Taxonomia de categorias do Gastei (PT-BR, dot-notation hierárquica).
+#
+# Fonte da verdade DOCUMENTAL — a migration inicial (alembic/versions/0001_initial_schema.py)
+# tem uma cópia inline dessa lista para garantir reprodutibilidade.
+# Ao adicionar/remover categorias: edita aqui E cria nova migration que faz o INSERT/DELETE.
+
+categories:
+  # Despesas — pais
+  - { code: alimentacao,    parent: null, label: "Alimentação",     icon: "🍽️" }
+  - { code: moradia,        parent: null, label: "Moradia",         icon: "🏠" }
+  - { code: transporte,     parent: null, label: "Transporte",      icon: "🚗" }
+  - { code: saude,          parent: null, label: "Saúde",           icon: "🩺" }
+  - { code: educacao,       parent: null, label: "Educação",        icon: "📚" }
+  - { code: lazer,          parent: null, label: "Lazer",           icon: "🎮" }
+  - { code: financeiro,     parent: null, label: "Financeiro",      icon: "💳" }
+
+  # Alimentação
+  - { code: alimentacao.mercado,        parent: alimentacao, label: "Mercado" }
+  - { code: alimentacao.delivery,       parent: alimentacao, label: "Delivery" }
+  - { code: alimentacao.restaurante,    parent: alimentacao, label: "Restaurante" }
+  - { code: alimentacao.cafe_padaria,   parent: alimentacao, label: "Café e padaria" }
+
+  # Moradia
+  - { code: moradia.aluguel,            parent: moradia, label: "Aluguel" }
+  - { code: moradia.condominio,         parent: moradia, label: "Condomínio" }
+  - { code: moradia.contas_consumo,     parent: moradia, label: "Contas de consumo (luz, água, gás, internet)" }
+
+  # Transporte
+  - { code: transporte.combustivel,         parent: transporte, label: "Combustível" }
+  - { code: transporte.app,                 parent: transporte, label: "Aplicativo (Uber, 99)" }
+  - { code: transporte.transporte_publico,  parent: transporte, label: "Transporte público" }
+  - { code: transporte.estacionamento,      parent: transporte, label: "Estacionamento" }
+
+  # Saúde
+  - { code: saude.plano,        parent: saude, label: "Plano de saúde" }
+  - { code: saude.farmacia,     parent: saude, label: "Farmácia" }
+  - { code: saude.consultas,    parent: saude, label: "Consultas" }
+
+  # Educação
+  - { code: educacao.cursos,        parent: educacao, label: "Cursos" }
+  - { code: educacao.assinaturas,   parent: educacao, label: "Assinaturas (Alura, Coursera)" }
+
+  # Lazer
+  - { code: lazer.streaming,            parent: lazer, label: "Streaming" }
+  - { code: lazer.bares_restaurantes,   parent: lazer, label: "Bares e restaurantes" }
+  - { code: lazer.viagem,               parent: lazer, label: "Viagem" }
+  - { code: lazer.compras,              parent: lazer, label: "Compras" }
+
+  # Financeiro
+  - { code: financeiro.tarifas,         parent: financeiro, label: "Tarifas" }
+  - { code: financeiro.juros,           parent: financeiro, label: "Juros" }
+  - { code: financeiro.iof,             parent: financeiro, label: "IOF" }
+  - { code: financeiro.fatura_cartao,   parent: financeiro, label: "Pagamento de fatura de cartão" }
+
+  # Receitas
+  - { code: renda,              parent: null, label: "Renda",           icon: "💰", is_income: true }
+  - { code: renda.salario,      parent: renda, label: "Salário",         is_income: true }
+  - { code: renda.freelance,    parent: renda, label: "Freelance",       is_income: true }
+  - { code: renda.rendimentos,  parent: renda, label: "Rendimentos",     is_income: true }
+  - { code: renda.presentes,    parent: renda, label: "Presentes",       is_income: true }
+  - { code: renda.pensao,       parent: renda, label: "Pensão alimentícia", is_income: true }
+
+  # Investimentos
+  - { code: investimento,             parent: null, label: "Investimento",  icon: "📈", is_investment: true }
+  - { code: investimento.aporte,      parent: investimento, label: "Aporte",     is_investment: true }
+  - { code: investimento.resgate,     parent: investimento, label: "Resgate",    is_investment: true }
+  - { code: investimento.dividendo,   parent: investimento, label: "Dividendo",  is_investment: true, is_income: true }
+
+  # Transferências (não contam como receita/despesa)
+  - { code: transferencia,                          parent: null, label: "Transferência", icon: "🔄", is_transfer: true }
+  - { code: transferencia.entre_contas_proprias,    parent: transferencia, label: "Entre contas próprias", is_transfer: true }
+  - { code: transferencia.pix_terceiros,            parent: transferencia, label: "PIX para terceiros",    is_transfer: true }
+
+  # Catch-all
+  - { code: outros,             parent: null, label: "Outros", icon: "📦" }
+  - { code: outros.diversos,    parent: outros, label: "Diversos" }

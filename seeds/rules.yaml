@@ -1,0 +1,126 @@
+# Regras determinísticas — estágio 1 do pipeline (§7.2 do ARCHITECTURE.md).
+# Devem cobrir ≥60% das transações típicas (princípio §2.3).
+#
+# Convenções:
+# - pattern_type "substring" é case-insensitive — preferir sempre que possível
+# - pattern_type "regex" só quando substring não basta (precisa de \b, alternância, etc.)
+# - priority: maior vence. Default 100. Use 200+ pra "fortes", 50- pra "ambíguas".
+# - As descrições reais de extratos brasileiros costumam vir em CAIXA ALTA com sufixos
+#   ("IFOOD *RESTAURANTE", "UBER *TRIP HELP.UBER.COM"). Os patterns aqui são lowercase
+#   (o engine compara em lowercase).
+
+rules:
+  # ---------------- Alimentação — delivery ----------------
+  - { pattern: "ifood",            pattern_type: "substring", category: "alimentacao.delivery", priority: 200 }
+  - { pattern: "rappi",            pattern_type: "substring", category: "alimentacao.delivery", priority: 200 }
+  - { pattern: "ze delivery",      pattern_type: "substring", category: "alimentacao.delivery", priority: 200 }
+  - { pattern: "uber eats",        pattern_type: "substring", category: "alimentacao.delivery", priority: 200 }
+  - { pattern: "james delivery",   pattern_type: "substring", category: "alimentacao.delivery", priority: 200 }
+
+  # ---------------- Alimentação — mercado ----------------
+  - { pattern: "carrefour",        pattern_type: "substring", category: "alimentacao.mercado", priority: 150 }
+  - { pattern: "pao de acucar",    pattern_type: "substring", category: "alimentacao.mercado", priority: 150 }
+  - { pattern: "extra ",           pattern_type: "substring", category: "alimentacao.mercado", priority: 150 }
+  - { pattern: "assai",            pattern_type: "substring", category: "alimentacao.mercado", priority: 150 }
+  - { pattern: "atacadao",         pattern_type: "substring", category: "alimentacao.mercado", priority: 150 }
+  - { pattern: "sams club",        pattern_type: "substring", category: "alimentacao.mercado", priority: 150 }
+  - { pattern: "supermercado",     pattern_type: "substring", category: "alimentacao.mercado", priority: 100 }
+  - { pattern: "hortifruti",       pattern_type: "substring", category: "alimentacao.mercado", priority: 100 }
+
+  # ---------------- Alimentação — café/padaria/restaurante ----------------
+  - { pattern: "starbucks",        pattern_type: "substring", category: "alimentacao.cafe_padaria", priority: 150 }
+  - { pattern: "padaria",          pattern_type: "substring", category: "alimentacao.cafe_padaria", priority: 100 }
+  - { pattern: "mc donalds",       pattern_type: "substring", category: "alimentacao.restaurante", priority: 150 }
+  - { pattern: "mcdonalds",        pattern_type: "substring", category: "alimentacao.restaurante", priority: 150 }
+  - { pattern: "burger king",      pattern_type: "substring", category: "alimentacao.restaurante", priority: 150 }
+  - { pattern: "outback",          pattern_type: "substring", category: "alimentacao.restaurante", priority: 150 }
+  - { pattern: "subway",           pattern_type: "substring", category: "alimentacao.restaurante", priority: 150 }
+
+  # ---------------- Transporte — apps ----------------
+  - { pattern: "uber",             pattern_type: "regex",     category: "transporte.app", priority: 200 }  # casa "UBER *TRIP", "uber"
+  - { pattern: "99app",            pattern_type: "substring", category: "transporte.app", priority: 200 }
+  - { pattern: "99 *",             pattern_type: "substring", category: "transporte.app", priority: 200 }
+  - { pattern: "cabify",           pattern_type: "substring", category: "transporte.app", priority: 200 }
+
+  # ---------------- Transporte — combustível ----------------
+  - { pattern: "posto ",           pattern_type: "substring", category: "transporte.combustivel", priority: 150 }
+  - { pattern: "ipiranga",         pattern_type: "substring", category: "transporte.combustivel", priority: 150 }
+  - { pattern: "shell",            pattern_type: "substring", category: "transporte.combustivel", priority: 150 }
+  - { pattern: "br distribuidora", pattern_type: "substring", category: "transporte.combustivel", priority: 150 }
+
+  # ---------------- Transporte — público / estacionamento ----------------
+  - { pattern: "bilhete unico",    pattern_type: "substring", category: "transporte.transporte_publico", priority: 150 }
+  - { pattern: "metro sp",         pattern_type: "substring", category: "transporte.transporte_publico", priority: 150 }
+  - { pattern: "estapar",          pattern_type: "substring", category: "transporte.estacionamento", priority: 150 }
+  - { pattern: "zul digital",      pattern_type: "substring", category: "transporte.estacionamento", priority: 150 }
+
+  # ---------------- Moradia — contas ----------------
+  - { pattern: "enel",             pattern_type: "substring", category: "moradia.contas_consumo", priority: 150 }
+  - { pattern: "light ",           pattern_type: "substring", category: "moradia.contas_consumo", priority: 150 }
+  - { pattern: "cemig",            pattern_type: "substring", category: "moradia.contas_consumo", priority: 150 }
+  - { pattern: "sabesp",           pattern_type: "substring", category: "moradia.contas_consumo", priority: 150 }
+  - { pattern: "comgas",           pattern_type: "substring", category: "moradia.contas_consumo", priority: 150 }
+  - { pattern: "vivo",             pattern_type: "substring", category: "moradia.contas_consumo", priority: 100 }
+  - { pattern: "claro ",           pattern_type: "substring", category: "moradia.contas_consumo", priority: 100 }
+  - { pattern: "tim ",             pattern_type: "substring", category: "moradia.contas_consumo", priority: 100 }
+
+  # ---------------- Saúde ----------------
+  - { pattern: "drogasil",         pattern_type: "substring", category: "saude.farmacia", priority: 150 }
+  - { pattern: "droga raia",       pattern_type: "substring", category: "saude.farmacia", priority: 150 }
+  - { pattern: "drogaria",         pattern_type: "substring", category: "saude.farmacia", priority: 100 }
+  - { pattern: "pague menos",      pattern_type: "substring", category: "saude.farmacia", priority: 150 }
+  - { pattern: "ultrafarma",       pattern_type: "substring", category: "saude.farmacia", priority: 150 }
+  - { pattern: "amil",             pattern_type: "substring", category: "saude.plano", priority: 150 }
+  - { pattern: "sulamerica",       pattern_type: "substring", category: "saude.plano", priority: 150 }
+  - { pattern: "unimed",           pattern_type: "substring", category: "saude.plano", priority: 150 }
+  - { pattern: "hapvida",          pattern_type: "substring", category: "saude.plano", priority: 150 }
+
+  # ---------------- Educação ----------------
+  - { pattern: "alura",            pattern_type: "substring", category: "educacao.assinaturas", priority: 150 }
+  - { pattern: "coursera",         pattern_type: "substring", category: "educacao.assinaturas", priority: 150 }
+  - { pattern: "udemy",            pattern_type: "substring", category: "educacao.assinaturas", priority: 150 }
+  - { pattern: "rocketseat",       pattern_type: "substring", category: "educacao.assinaturas", priority: 150 }
+
+  # ---------------- Lazer — streaming ----------------
+  - { pattern: "netflix",          pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+  - { pattern: "spotify",          pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+  - { pattern: "disney",           pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+  - { pattern: "amazon prime",     pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+  - { pattern: "hbo max",          pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+  - { pattern: "globoplay",        pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+  - { pattern: "youtube premium",  pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+  - { pattern: "deezer",           pattern_type: "substring", category: "lazer.streaming", priority: 200 }
+
+  # ---------------- Lazer — viagem / compras ----------------
+  - { pattern: "latam",            pattern_type: "substring", category: "lazer.viagem", priority: 150 }
+  - { pattern: "gol linhas",       pattern_type: "substring", category: "lazer.viagem", priority: 150 }
+  - { pattern: "azul linhas",      pattern_type: "substring", category: "lazer.viagem", priority: 150 }
+  - { pattern: "decolar",          pattern_type: "substring", category: "lazer.viagem", priority: 150 }
+  - { pattern: "booking.com",      pattern_type: "substring", category: "lazer.viagem", priority: 150 }
+  - { pattern: "airbnb",           pattern_type: "substring", category: "lazer.viagem", priority: 150 }
+  - { pattern: "amazon.com",       pattern_type: "substring", category: "lazer.compras", priority: 100 }
+  - { pattern: "mercado livre",    pattern_type: "substring", category: "lazer.compras", priority: 100 }
+  - { pattern: "shopee",           pattern_type: "substring", category: "lazer.compras", priority: 100 }
+  - { pattern: "magazine luiza",   pattern_type: "substring", category: "lazer.compras", priority: 100 }
+  - { pattern: "aliexpress",       pattern_type: "substring", category: "lazer.compras", priority: 100 }
+
+  # ---------------- Financeiro ----------------
+  - { pattern: "iof",              pattern_type: "substring", category: "financeiro.iof", priority: 200 }
+  - { pattern: "tarifa",           pattern_type: "substring", category: "financeiro.tarifas", priority: 150 }
+  - { pattern: "anuidade",         pattern_type: "substring", category: "financeiro.tarifas", priority: 150 }
+  - { pattern: "juros ",           pattern_type: "substring", category: "financeiro.juros", priority: 150 }
+  - { pattern: "pagamento de fatura", pattern_type: "substring", category: "financeiro.fatura_cartao", priority: 200 }
+  - { pattern: "pgto fatura",      pattern_type: "substring", category: "financeiro.fatura_cartao", priority: 200 }
+
+  # ---------------- Renda ----------------
+  - { pattern: "salario",          pattern_type: "substring", category: "renda.salario", priority: 200 }
+  - { pattern: "holerite",         pattern_type: "substring", category: "renda.salario", priority: 200 }
+  - { pattern: "rendimento poupanca", pattern_type: "substring", category: "renda.rendimentos", priority: 200 }
+
+  # ---------------- Investimentos ----------------
+  - { pattern: "tesouro direto",   pattern_type: "substring", category: "investimento.aporte", priority: 150 }
+  - { pattern: "aplicacao cdb",    pattern_type: "substring", category: "investimento.aporte", priority: 150 }
+  - { pattern: "resgate cdb",      pattern_type: "substring", category: "investimento.resgate", priority: 150 }
+
+  # NOTA: PIX puro NÃO tem regra — é ambíguo (pode ser receita, despesa, transferência).
+  # Deixamos pro LLM (estágio 2) decidir baseado em valor + descrição completa.
