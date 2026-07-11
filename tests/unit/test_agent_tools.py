@@ -13,7 +13,6 @@ import pytest
 
 from gastei.agents.tools import make_default_tools
 from gastei.schemas.transaction import Transaction
-from gastei.services.insight_service import InsightsService
 from tests.fakes import FakeTransactionRepository
 
 pytestmark = pytest.mark.unit
@@ -69,7 +68,7 @@ def _tool_by_name(tools, name):
 
 async def test_spending_by_category_returns_formatted_text() -> None:
     repo = _seeded_repo()
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo)
     tool = _tool_by_name(tools, "get_spending_by_category")
 
     out = await tool.execute({"account_id": "a"})
@@ -81,7 +80,7 @@ async def test_spending_by_category_returns_formatted_text() -> None:
 
 async def test_spending_by_category_filters_by_date() -> None:
     repo = _seeded_repo()
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo)
     tool = _tool_by_name(tools, "get_spending_by_category")
 
     out = await tool.execute(
@@ -98,7 +97,7 @@ async def test_spending_by_category_filters_by_date() -> None:
 
 async def test_spending_by_category_empty_period_returns_message() -> None:
     repo = _seeded_repo()
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo)
     tool = _tool_by_name(tools, "get_spending_by_category")
 
     out = await tool.execute(
@@ -116,7 +115,7 @@ async def test_spending_by_category_empty_period_returns_message() -> None:
 
 async def test_top_merchants_returns_sorted_by_spend() -> None:
     repo = _seeded_repo()
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo)
     tool = _tool_by_name(tools, "get_top_merchants")
 
     out = await tool.execute({"account_id": "a", "limit": 5})
@@ -131,7 +130,7 @@ async def test_top_merchants_returns_sorted_by_spend() -> None:
 
 async def test_monthly_summary_separates_income_and_expense() -> None:
     repo = _seeded_repo()
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo)
     tool = _tool_by_name(tools, "get_monthly_summary")
 
     out = await tool.execute({"account_id": "a"})
@@ -145,7 +144,7 @@ async def test_monthly_summary_separates_income_and_expense() -> None:
 
 async def test_list_uncategorized_returns_only_null_category() -> None:
     repo = _seeded_repo()
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo)
     tool = _tool_by_name(tools, "list_uncategorized")
 
     out = await tool.execute({})
@@ -167,7 +166,7 @@ async def test_list_uncategorized_respects_limit() -> None:
         for i in range(1, 11)
     ]
     repo = FakeTransactionRepository(seed=seed)
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo)
     tool = _tool_by_name(tools, "list_uncategorized")
 
     out = await tool.execute({"limit": 3})
@@ -175,15 +174,86 @@ async def test_list_uncategorized_respects_limit() -> None:
     assert sum(out.count(f"t{i}") for i in range(1, 11)) == 3
 
 
+# ---------------- Consolidado (sem account_id) + list_accounts ----------------
+
+
+def _two_account_repo() -> FakeTransactionRepository:
+    return FakeTransactionRepository(
+        seed=[
+            Transaction(
+                id="n1",
+                account_id="acc-nu",
+                date=date(2026, 4, 5),
+                amount=-50.0,
+                description="iFood",
+                category="alimentacao.delivery",
+            ),
+            Transaction(
+                id="i1",
+                account_id="acc-inter",
+                date=date(2026, 4, 6),
+                amount=-70.0,
+                description="iFood",
+                category="alimentacao.delivery",
+            ),
+        ]
+    )
+
+
+_ACCOUNTS = [
+    {"id": "acc-nu", "name": "Conta", "bank": "Nubank", "balance": 1000.0},
+    {"id": "acc-inter", "name": "Conta", "bank": "Inter", "balance": 500.0},
+]
+
+
+async def test_spending_without_account_id_consolidates_all_accounts() -> None:
+    repo = _two_account_repo()
+    tools = make_default_tools(repo=repo, list_accounts=lambda: _ACCOUNTS)
+    tool = _tool_by_name(tools, "get_spending_by_category")
+
+    out = await tool.execute({})
+    assert "120.00" in out  # 50 (Nubank) + 70 (Inter)
+
+
+async def test_consolidated_path_requires_accounts_provider() -> None:
+    repo = _two_account_repo()
+    tools = make_default_tools(repo=repo)
+    tool = _tool_by_name(tools, "get_spending_by_category")
+
+    with pytest.raises(ValueError, match="account_id"):
+        await tool.execute({})
+
+
+async def test_list_accounts_tool_reports_banks_and_ids() -> None:
+    tools = make_default_tools(repo=FakeTransactionRepository(), list_accounts=lambda: _ACCOUNTS)
+    tool = _tool_by_name(tools, "list_accounts")
+
+    out = await tool.execute({})
+    assert "Nubank" in out
+    assert "id=acc-inter" in out
+
+
+def test_list_accounts_tool_absent_without_provider() -> None:
+    tools = make_default_tools(repo=FakeTransactionRepository())
+    assert "list_accounts" not in {t.name for t in tools}
+
+
 # ---------------- Schemas das tools ----------------
 
 
 def test_all_tools_have_valid_schemas() -> None:
     repo = FakeTransactionRepository()
-    tools = make_default_tools(insights=InsightsService(repo), repo=repo)
+    tools = make_default_tools(repo=repo, list_accounts=lambda: [])
     for t in tools:
         s = t.schema
         assert s["name"] == t.name
         assert s["description"]
         assert s["input_schema"]["type"] == "object"
         assert "properties" in s["input_schema"]
+
+
+def test_insight_tools_do_not_require_account_id() -> None:
+    """O LLM não conhece ids internos — account_id é opcional em todas as tools."""
+    tools = make_default_tools(repo=FakeTransactionRepository(), list_accounts=lambda: [])
+    for t in tools:
+        assert "account_id" not in t.schema["input_schema"].get("required", [])

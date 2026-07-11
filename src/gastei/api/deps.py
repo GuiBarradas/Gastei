@@ -7,6 +7,7 @@ adapters. Tests override these via ``app.dependency_overrides``.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from gastei.agents.insight_agent import InsightAgent
+from gastei.agents.insight_agent import SYSTEM_PROMPT, InsightAgent
 from gastei.agents.tools import make_default_tools
 from gastei.clients.gemini_client import GeminiLLMClient
 from gastei.clients.llm_client import AnthropicLLMClient
@@ -32,7 +33,9 @@ from gastei.domain.ports import (
     LLMClient,
     TransactionRepository,
 )
+from gastei.models.account import Account as AccountORM
 from gastei.models.category import Category as CategoryORM
+from gastei.models.item import Item as ItemORM
 from gastei.repositories.account_repo import AccountRepository, ItemRepository
 from gastei.repositories.example_repo import SQLAlchemyExampleStore
 from gastei.repositories.transaction_repo import SQLAlchemyTransactionRepository
@@ -189,16 +192,30 @@ def get_insights_service(
 
 def get_insight_agent(
     llm: LLMClient | None = Depends(get_llm_client),
-    insights: InsightsService = Depends(get_insights_service),
     repo: TransactionRepository = Depends(get_transaction_repo),
+    session: Session = Depends(get_db_session),
 ) -> InsightAgent | None:
     if llm is None:
         return None
-    tools = make_default_tools(insights=insights, repo=repo)
+
+    accounts = [
+        {
+            "id": acc.id,
+            "name": acc.name,
+            "bank": item.institution_name,
+            "balance": acc.balance,
+        }
+        for acc, item in session.execute(
+            select(AccountORM, ItemORM).join(ItemORM, AccountORM.item_id == ItemORM.id)
+        ).all()
+    ]
+
+    tools = make_default_tools(repo=repo, list_accounts=lambda: accounts)
     return InsightAgent(
         llm=llm,
         tools=tools,
         model=_smart_model_for_provider(),
+        system_prompt=f"{SYSTEM_PROMPT}\nHoje é {date.today():%d/%m/%Y}.",
     )
 
 

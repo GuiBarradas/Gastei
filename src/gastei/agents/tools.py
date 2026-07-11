@@ -2,7 +2,11 @@
 
 Each ``AgentTool`` is an async callable plus a JSON Schema. The agent dispatches
 by ``name`` when the LLM emits a ``tool_use`` block. Tools are constructed via
-a factory with their dependencies (services, repositories) injected.
+a factory with their dependencies injected.
+
+``account_id`` is optional on the insight tools: omitted, they consolidate
+across every account (the LLM has no way to know internal ids up front —
+``list_accounts`` exists for drill-downs).
 
 Tool output strings are rendered in Portuguese because they are read by an
 LLM that talks to a Brazilian user. The tool *contracts* (names, parameter
@@ -16,10 +20,12 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from gastei.domain.insights import aggregations as agg
 from gastei.domain.ports import TransactionRepository
-from gastei.services.insight_service import InsightsService
+from gastei.schemas.transaction import Transaction
 
 ToolCallable = Callable[..., Awaitable[str]]
+AccountsProvider = Callable[[], list[dict[str, Any]]]
 
 
 @dataclass(frozen=True)
@@ -47,65 +53,80 @@ def _parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
 
 
+def _fmt_brl(v: float) -> str:
+    # No thousands separator: "5,000.00" reads as 5.00 to a pt-BR model.
+    return f"R$ {v:.2f}"
+
+
 # ----------------------------------------------------------------------------
 # Factory
 # ----------------------------------------------------------------------------
 
 
 def make_default_tools(
-    *, insights: InsightsService, repo: TransactionRepository
+    *,
+    repo: TransactionRepository,
+    list_accounts: AccountsProvider | None = None,
 ) -> list[AgentTool]:
-    """Four tools that cover ~80% of typical conversational queries."""
+    """Five tools that cover the typical conversational queries.
+
+    ``list_accounts`` supplies ``{"id", "name", "bank", "balance"}`` dicts; when
+    absent, the consolidated (no ``account_id``) path is unavailable and the
+    ``list_accounts`` tool is not registered.
+    """
+
+    async def _txs(
+        account_id: str | None,
+        start: date | None,
+        end: date | None,
+    ) -> list[Transaction]:
+        if account_id:
+            return await repo.list_by_account(account_id, start=start, end=end)
+        if list_accounts is None:
+            raise ValueError("account_id is required — no accounts provider wired in")
+        out: list[Transaction] = []
+        for acc in list_accounts():
+            out.extend(await repo.list_by_account(acc["id"], start=start, end=end))
+        return out
 
     async def _spending_by_category(
-        account_id: str,
+        account_id: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
         top_n: int = 8,
     ) -> str:
-        rows = await insights.spending_by_category(
-            account_id=account_id,
-            start=_parse_date(start_date),
-            end=_parse_date(end_date),
-            top_n=top_n,
-        )
+        txs = await _txs(account_id, _parse_date(start_date), _parse_date(end_date))
+        rows = agg.spending_by_category(txs, top_n=top_n)
         if not rows:
             return "Nenhum gasto registrado no período."
-        lines = [f"- {r.category}: R$ {r.amount:.2f} ({r.transaction_count} tx)" for r in rows]
+        lines = [f"- {r.category}: {_fmt_brl(r.amount)} ({r.transaction_count} tx)" for r in rows]
         return "Gastos por categoria:\n" + "\n".join(lines)
 
     async def _top_merchants(
-        account_id: str,
+        account_id: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
         limit: int = 10,
     ) -> str:
-        rows = await insights.top_merchants(
-            account_id=account_id,
-            start=_parse_date(start_date),
-            end=_parse_date(end_date),
-            limit=limit,
-        )
+        txs = await _txs(account_id, _parse_date(start_date), _parse_date(end_date))
+        rows = agg.top_merchants(txs, limit=limit)
         if not rows:
             return "Nenhum estabelecimento no período."
-        lines = [f"- {r.merchant}: R$ {r.amount:.2f} ({r.transaction_count} tx)" for r in rows]
+        lines = [f"- {r.merchant}: {_fmt_brl(r.amount)} ({r.transaction_count} tx)" for r in rows]
         return "Top estabelecimentos:\n" + "\n".join(lines)
 
     async def _monthly_summary(
-        account_id: str,
+        account_id: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> str:
-        rows = await insights.monthly_summary(
-            account_id=account_id,
-            start=_parse_date(start_date),
-            end=_parse_date(end_date),
-        )
+        txs = await _txs(account_id, _parse_date(start_date), _parse_date(end_date))
+        rows = agg.monthly_summary(txs)
         if not rows:
             return "Sem dados mensais no período."
         lines = [
-            f"- {r.year}-{r.month:02d}: receitas R$ {r.income:.2f}, "
-            f"despesas R$ {r.expense:.2f}, saldo R$ {r.net:.2f}"
+            f"- {r.year}-{r.month:02d}: receitas {_fmt_brl(r.income)}, "
+            f"despesas {_fmt_brl(r.expense)}, saldo {_fmt_brl(r.net)}"
             for r in rows
         ]
         return "Resumo mensal:\n" + "\n".join(lines)
@@ -120,8 +141,25 @@ def make_default_tools(
         ]
         return "Transações sem categoria:\n" + "\n".join(lines)
 
+    async def _list_accounts() -> str:
+        assert list_accounts is not None
+        accounts = list_accounts()
+        if not accounts:
+            return "Nenhuma conta cadastrada."
+        lines = [
+            f"- {a.get('bank', '?')} · {a['name']} — id={a['id']} — saldo {_fmt_brl(a['balance'])}"
+            for a in accounts
+        ]
+        return "Contas disponíveis:\n" + "\n".join(lines)
+
     period_props = {
-        "account_id": {"type": "string", "description": "Internal Account id."},
+        "account_id": {
+            "type": "string",
+            "description": (
+                "Internal account id. Optional — omit to consolidate across all "
+                "accounts. Use list_accounts to discover ids for drill-downs."
+            ),
+        },
         "start_date": {
             "type": "string",
             "description": "ISO YYYY-MM-DD. Optional.",
@@ -132,7 +170,7 @@ def make_default_tools(
         },
     }
 
-    return [
+    tools = [
         AgentTool(
             name="get_spending_by_category",
             description=(
@@ -150,7 +188,7 @@ def make_default_tools(
                         "maximum": 50,
                     },
                 },
-                "required": ["account_id"],
+                "required": [],
             },
             fn=_spending_by_category,
         ),
@@ -163,7 +201,7 @@ def make_default_tools(
                     **period_props,
                     "limit": {"type": "integer", "minimum": 1, "maximum": 50},
                 },
-                "required": ["account_id"],
+                "required": [],
             },
             fn=_top_merchants,
         ),
@@ -176,7 +214,7 @@ def make_default_tools(
             input_schema={
                 "type": "object",
                 "properties": period_props,
-                "required": ["account_id"],
+                "required": [],
             },
             fn=_monthly_summary,
         ),
@@ -193,3 +231,18 @@ def make_default_tools(
             fn=_list_uncategorized,
         ),
     ]
+
+    if list_accounts is not None:
+        tools.append(
+            AgentTool(
+                name="list_accounts",
+                description=(
+                    "List the user's bank accounts (bank, name, internal id, balance). "
+                    "Call this before drilling down into a specific account."
+                ),
+                input_schema={"type": "object", "properties": {}, "required": []},
+                fn=_list_accounts,
+            )
+        )
+
+    return tools
